@@ -1,0 +1,20 @@
+<h2>Instagram</h2>
+<details>
+  <summary>How to obtain the session key</summary>
+  <ol>
+    <li>Log in at <a href="https://www.instagram.com" target="_blank" rel="noopener">instagram.com</a> in your browser.</li>
+    <li>Open DevTools (<kbd>F12</kbd>) → <strong>Application</strong> (Chrome) / <strong>Storage</strong> (Firefox) → Cookies → <code>https://www.instagram.com</code>.</li>
+    <li>Copy the value of the <code>sessionid</code> cookie.</li>
+  </ol>
+  <p>The key is <strong>not stored</strong> — paste it every time you sync. It becomes invalid when you log out of Instagram or change your password.</p>
+  <p>⚠️ <strong>Warning:</strong> the Instagram session ID grants full account access for a few hours to whoever has it. Consider logging out of your Instagram account after syncing the footprint to revoke the session ID.</p>
+</details>
+<form method="post">
+  <input type="hidden" name="action" value="sync">
+  <label>
+    Session key
+    <input type="password" name="sessionid" autocomplete="off" required>
+  </label>
+  <button type="submit">Sync now</button>
+</form>
+{{with .Message}}<p><mark>{{.}}</mark></p>{{end}}

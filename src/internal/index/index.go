@@ -3,11 +3,13 @@ package index
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	_ "modernc.org/sqlite"
@@ -21,10 +23,12 @@ type Record struct {
 	ID        string
 	Medium    string
 	CreatedAt time.Time
+	Attrs     map[string]string
 }
 
 type MetadataIndex interface {
 	UpsertRecord(ctx context.Context, r Record) error
+	HasRecord(ctx context.Context, id string) (bool, error)
 	ListRecords(ctx context.Context, medium string) ([]Record, error)
 	SetSetting(ctx context.Context, medium, key, value string) error
 	GetSetting(ctx context.Context, medium, key string) (string, error)
@@ -88,19 +92,40 @@ func (s *SQLite) migrate() error {
 			PRIMARY KEY (medium, key)
 		);
 	`)
-	return err
+	if err != nil {
+		return err
+	}
+	// Idempotent column addition for pre-attrs databases.
+	if _, err := s.db.Exec(`ALTER TABLE records ADD COLUMN attrs TEXT`); err != nil && !strings.Contains(err.Error(), "duplicate column") {
+		return err
+	}
+	return nil
 }
 
 func (s *SQLite) UpsertRecord(_ context.Context, r Record) error {
-	_, err := s.db.Exec(
-		`INSERT OR REPLACE INTO records (id, medium, created_at) VALUES (?, ?, ?)`,
-		r.ID, r.Medium, r.CreatedAt.Unix(),
+	var attrs []byte
+	var err error
+	if r.Attrs != nil {
+		attrs, err = json.Marshal(r.Attrs)
+		if err != nil {
+			return err
+		}
+	}
+	_, err = s.db.Exec(
+		`INSERT OR REPLACE INTO records (id, medium, created_at, attrs) VALUES (?, ?, ?, ?)`,
+		r.ID, r.Medium, r.CreatedAt.Unix(), attrs,
 	)
 	return err
 }
 
+func (s *SQLite) HasRecord(_ context.Context, id string) (bool, error) {
+	var exists bool
+	err := s.db.QueryRow(`SELECT EXISTS(SELECT 1 FROM records WHERE id = ?)`, id).Scan(&exists)
+	return exists, err
+}
+
 func (s *SQLite) ListRecords(_ context.Context, medium string) ([]Record, error) {
-	q := `SELECT id, medium, created_at FROM records`
+	q := `SELECT id, medium, created_at, attrs FROM records`
 	var args []any
 	if medium != "" {
 		q += ` WHERE medium = ?`
@@ -116,10 +141,16 @@ func (s *SQLite) ListRecords(_ context.Context, medium string) ([]Record, error)
 	for rows.Next() {
 		var r Record
 		var ts int64
-		if err := rows.Scan(&r.ID, &r.Medium, &ts); err != nil {
+		var attrs []byte
+		if err := rows.Scan(&r.ID, &r.Medium, &ts, &attrs); err != nil {
 			return nil, err
 		}
 		r.CreatedAt = time.Unix(ts, 0)
+		if len(attrs) > 0 {
+			if err := json.Unmarshal(attrs, &r.Attrs); err != nil {
+				return nil, err
+			}
+		}
 		out = append(out, r)
 	}
 	return out, rows.Err()

@@ -11,6 +11,7 @@ import (
 
 	"github.com/swalrus1/many-diaries/internal/config"
 	"github.com/swalrus1/many-diaries/internal/index"
+	"github.com/swalrus1/many-diaries/internal/medium/instagram"
 	"github.com/swalrus1/many-diaries/internal/medium/obsidian"
 	"github.com/swalrus1/many-diaries/internal/storage"
 	"github.com/swalrus1/many-diaries/internal/web"
@@ -41,6 +42,7 @@ func main() {
 		log.Fatal(err)
 	}
 	srv.AddMedium(obsidian.New(st, idx))
+	srv.AddMedium(instagram.New(st, idx))
 
 	httpSrv := &http.Server{Addr: *addr, Handler: srv.Handler()}
 	go func() {
