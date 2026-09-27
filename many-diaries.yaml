@@ -1,0 +1,3 @@
+storage:
+  disk:
+    root: ./data

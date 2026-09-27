@@ -1,0 +1,14 @@
+<h2>Obsidian vault</h2>
+<form method="post">
+  <input type="hidden" name="action" value="save">
+  <label>
+    Vault path
+    <input name="vault_path" value="{{.VaultPath}}" placeholder="/path/to/vault" required>
+  </label>
+  <button type="submit">Save</button>
+</form>
+<form method="post">
+  <input type="hidden" name="action" value="sync">
+  <button type="submit">Sync now</button>
+</form>
+{{with .Message}}<p><mark>{{.}}</mark></p>{{end}}
