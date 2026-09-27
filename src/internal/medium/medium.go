@@ -1,8 +1,12 @@
 package medium
 
-import "net/http"
+import (
+	"html/template"
+	"net/http"
+)
 
 type Medium interface {
 	Name() string
-	Handler() http.Handler
+	ConfigPanel(r *http.Request, message string) (template.HTML, error)
+	HandleAction(r *http.Request) (string, error)
 }

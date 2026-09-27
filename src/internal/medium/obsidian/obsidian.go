@@ -21,71 +21,51 @@ const Name = "obsidian"
 //go:embed obsidian.html
 var pageHTML string
 
-type RenderPage func(w http.ResponseWriter, title string, body template.HTML)
-
 type Medium struct {
-	st     storage.Storage
-	idx    index.MetadataIndex
-	render RenderPage
-	tmpl   *template.Template
+	st   storage.Storage
+	idx  index.MetadataIndex
+	tmpl *template.Template
 }
 
-func New(st storage.Storage, idx index.MetadataIndex, render RenderPage) *Medium {
+func New(st storage.Storage, idx index.MetadataIndex) *Medium {
 	return &Medium{
-		st:     st,
-		idx:    idx,
-		render: render,
-		tmpl:   template.Must(template.New("obsidian").Parse(pageHTML)),
+		st:   st,
+		idx:  idx,
+		tmpl: template.Must(template.New("obsidian").Parse(pageHTML)),
 	}
 }
 
 func (m *Medium) Name() string { return Name }
 
-func (m *Medium) Handler() http.Handler {
-	mux := http.NewServeMux()
-	mux.HandleFunc("GET /", m.get)
-	mux.HandleFunc("POST /", m.post)
-	return mux
-}
-
-func (m *Medium) get(w http.ResponseWriter, r *http.Request) {
+func (m *Medium) ConfigPanel(r *http.Request, message string) (template.HTML, error) {
 	vaultPath, err := m.idx.GetSetting(r.Context(), Name, "vault_path")
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+		return "", err
 	}
-	m.renderPage(w, vaultPath, "")
+	var body strings.Builder
+	if err := m.tmpl.Execute(&body, struct{ VaultPath, Message string }{vaultPath, message}); err != nil {
+		return "", err
+	}
+	return template.HTML(body.String()), nil
 }
 
-func (m *Medium) post(w http.ResponseWriter, r *http.Request) {
+func (m *Medium) HandleAction(r *http.Request) (string, error) {
 	switch r.FormValue("action") {
 	case "save":
 		vaultPath := strings.TrimSpace(r.FormValue("vault_path"))
 		if err := m.idx.SetSetting(r.Context(), Name, "vault_path", vaultPath); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
+			return "", err
 		}
-		m.renderPage(w, vaultPath, "Vault path saved.")
+		return "Vault path saved.", nil
 	case "sync":
 		n, err := m.Sync(r.Context())
-		vaultPath, _ := m.idx.GetSetting(r.Context(), Name, "vault_path")
 		if err != nil {
-			m.renderPage(w, vaultPath, "Sync failed: "+err.Error())
-			return
+			return "", err
 		}
-		m.renderPage(w, vaultPath, fmt.Sprintf("Synced %d records.", n))
+		return fmt.Sprintf("Synced %d records.", n), nil
 	default:
-		http.Error(w, "unknown action", http.StatusBadRequest)
+		return "", errors.New("unknown action")
 	}
-}
-
-func (m *Medium) renderPage(w http.ResponseWriter, vaultPath, message string) {
-	var body strings.Builder
-	if err := m.tmpl.Execute(&body, struct{ VaultPath, Message string }{vaultPath, message}); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	m.render(w, "Obsidian", template.HTML(body.String()))
 }
 
 func (m *Medium) Sync(ctx context.Context) (int, error) {

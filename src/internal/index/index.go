@@ -25,7 +25,7 @@ type Record struct {
 
 type MetadataIndex interface {
 	UpsertRecord(ctx context.Context, r Record) error
-	ListRecords(ctx context.Context) ([]Record, error)
+	ListRecords(ctx context.Context, medium string) ([]Record, error)
 	SetSetting(ctx context.Context, medium, key, value string) error
 	GetSetting(ctx context.Context, medium, key string) (string, error)
 	Flush(ctx context.Context) error
@@ -99,8 +99,15 @@ func (s *SQLite) UpsertRecord(_ context.Context, r Record) error {
 	return err
 }
 
-func (s *SQLite) ListRecords(_ context.Context) ([]Record, error) {
-	rows, err := s.db.Query(`SELECT id, medium, created_at FROM records ORDER BY created_at`)
+func (s *SQLite) ListRecords(_ context.Context, medium string) ([]Record, error) {
+	q := `SELECT id, medium, created_at FROM records`
+	var args []any
+	if medium != "" {
+		q += ` WHERE medium = ?`
+		args = append(args, medium)
+	}
+	q += ` ORDER BY created_at`
+	rows, err := s.db.Query(q, args...)
 	if err != nil {
 		return nil, err
 	}

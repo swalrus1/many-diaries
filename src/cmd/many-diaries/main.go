@@ -40,7 +40,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	srv.AddMedium(obsidian.New(st, idx, srv.RenderPage))
+	srv.AddMedium(obsidian.New(st, idx))
 
 	httpSrv := &http.Server{Addr: *addr, Handler: srv.Handler()}
 	go func() {
